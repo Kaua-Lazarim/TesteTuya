@@ -1,4 +1,4 @@
-// index.js (Projeto Simplificado - Apenas Tuya)
+// index.js (Projeto Simplificado com Rota Toggle Inteligente)
 
 // 1. Carrega as variáveis de ambiente do arquivo .env
 require('dotenv').config();
@@ -6,15 +6,15 @@ require('dotenv').config();
 // 2. Importa as bibliotecas necessárias
 const express = require('express');
 const { TuyaContext } = require('@tuya/tuya-connector-nodejs');
-const cors = require('cors'); // Importa a biblioteca CORS
+const cors = require('cors');
 
 // 3. Inicializa o aplicativo Express
 const app = express();
 const port = process.env.PORT || 3001;
 
 // 4. Configura os middlewares
-app.use(cors()); // Habilita o CORS para permitir que o FlutterFlow Web acesse a API
-app.use(express.json()); // Habilita o Express para entender corpos de requisição em JSON
+app.use(cors());
+app.use(express.json());
 
 // 5. Configura a conexão com a API da Tuya
 const tuyaContext = new TuyaContext({
@@ -30,7 +30,7 @@ app.get('/', (req, res) => {
     res.send('API da Tuya está no ar!');
 });
 
-// Rota para listar os dispositivos Tuya (COM A CORREÇÃO DO TYPEERROR)
+// Rota para listar os dispositivos Tuya (com a correção do TypeError)
 app.get('/devices/tuya', async (req, res) => {
     try {
         const response = await tuyaContext.request({
@@ -40,9 +40,6 @@ app.get('/devices/tuya', async (req, res) => {
 
         if (response.success) {
             const devices = response.result || [];
-
-            // --- CORREÇÃO DEFINITIVA PARA O TYPEERROR NO FLUTTERFLOW ---
-            // Garante que todos os campos 'value' dentro de 'status' sejam strings
             const sanitizedDevices = devices.map(device => {
                 if (device.status && Array.isArray(device.status)) {
                     device.status = device.status.map(statusItem => {
@@ -54,9 +51,7 @@ app.get('/devices/tuya', async (req, res) => {
                 }
                 return device;
             });
-
-            res.json(sanitizedDevices); // Envia a lista com os dados já "limpos"
-
+            res.json(sanitizedDevices);
         } else {
             res.status(500).json({ message: 'Erro ao buscar dispositivos Tuya', error: response.msg });
         }
@@ -65,7 +60,7 @@ app.get('/devices/tuya', async (req, res) => {
     }
 });
 
-// Rota para enviar comandos para um dispositivo Tuya
+// Rota antiga para enviar comandos (ainda útil, mas não para o nosso Switch)
 app.post('/devices/tuya/:deviceId/commands', async (req, res) => {
     const { deviceId } = req.params;
     const { commands } = req.body;
@@ -84,6 +79,55 @@ app.post('/devices/tuya/:deviceId/commands', async (req, res) => {
         res.status(500).json({ message: 'Erro crítico ao enviar comando para a Tuya', error: error.message });
     }
 });
+
+
+// --- ROTA NOVA E INTELIGENTE (que vamos usar no FlutterFlow) ---
+app.post('/devices/tuya/:deviceId/toggle', async (req, res) => {
+  try {
+    const { deviceId } = req.params;
+    console.log(`[Tuya] Recebida requisição de toggle para o deviceId: ${deviceId}`);
+
+    // 1. Pega o estado ATUAL do dispositivo na nuvem da Tuya
+    const statusResponse = await tuyaContext.request({
+      method: 'GET',
+      path: `/v1.0/devices/${deviceId}/status`,
+    });
+
+    if (!statusResponse.success) {
+      return res.status(500).json({ message: 'Falha ao obter status atual do dispositivo da Tuya.' });
+    }
+
+    // 2. Encontra o estado do switch e calcula o oposto
+    const switchStatusObject = statusResponse.result.find(s => s.code === 'switch_1');
+    if (!switchStatusObject) {
+      return res.status(404).json({ message: 'Dispositivo não possui um interruptor controlável (switch_1).' });
+    }
+    
+    const currentState = switchStatusObject.value; // ex: true
+    const newState = !currentState;             // ex: false
+
+    console.log(`[Tuya] Estado atual: ${currentState}. Enviando comando para: ${newState}`);
+
+    // 3. Envia o comando para a Tuya com o NOVO estado
+    const commandResponse = await tuyaContext.request({
+      method: 'POST',
+      path: `/v1.0/devices/${deviceId}/commands`,
+      body: {
+        commands: [{ code: 'switch_1', value: newState }],
+      },
+    });
+
+    if (commandResponse.success) {
+      res.json({ success: true, message: `Dispositivo alternado para ${newState}` });
+    } else {
+      res.status(500).json({ message: 'Falha ao enviar comando de toggle para a Tuya.' });
+    }
+
+  } catch (error) {
+    res.status(500).json({ message: 'Erro crítico na rota de toggle', error: error.message });
+  }
+});
+
 
 // 7. Inicia o servidor
 app.listen(port, () => {
