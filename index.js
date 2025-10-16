@@ -128,6 +128,36 @@ app.post('/devices/tuya/:deviceId/toggle', async (req, res) => {
   }
 });
 
+app.get('/devices/tuya/:deviceId/status', async (req, res) => {
+  try {
+    const { deviceId } = req.params;
+    console.log(`[Tuya] Buscando status detalhado para o deviceId: ${deviceId}`);
+
+    // A API da Tuya usa este endpoint para pegar todos os status atuais
+    const response = await tuyaContext.request({
+      method: 'GET',
+      path: `/v1.0/devices/${deviceId}/status`,
+    });
+
+    if (response.success) {
+      
+      const statusList = response.result || [];
+      const sanitizedStatusList = statusList.map(statusItem => {
+        if (statusItem.value !== null && statusItem.value !== undefined) {
+          statusItem.value = statusItem.value.toString();
+        }
+        return statusItem;
+      });
+
+      res.json({ result: sanitizedStatusList }); 
+
+    } else {
+      res.status(500).json({ message: 'Falha ao obter status do dispositivo da Tuya.', error: response.msg });
+    }
+  } catch (error) {
+    res.status(500).json({ message: 'Erro crítico na rota de status', error: error.message });
+  }
+});
 
 // 7. Inicia o servidor
 app.listen(port, () => {
