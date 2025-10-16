@@ -175,6 +175,62 @@ app.get('/devices/tuya/:deviceId/status', async (req, res) => {
   }
 });
 
+// index.js
+
+// ... (todo o seu código existente, como /devices/tuya, /toggle, etc.) ...
+
+// --- NOVA ROTA PARA O RELATÓRIO DE ENERGIA DIÁRIO ---
+app.get('/devices/tuya/:deviceId/daily-energy', async (req, res) => {
+  try {
+    const { deviceId } = req.params;
+    
+    // Pega a data de hoje no formato que a API da Tuya espera (YYYYMMDD)
+    const today = new Date();
+    const formattedDate = today.getFullYear().toString() + 
+                        ('0' + (today.getMonth() + 1)).slice(-2) + 
+                        ('0' + today.getDate()).slice(-2);
+
+    console.log(`[Tuya] Buscando energia diária para o device ${deviceId} na data ${formattedDate}`);
+
+    // Este é o endpoint da Tuya para estatísticas diárias
+    const response = await tuyaContext.request({
+      method: 'GET',
+      path: `/v1.0/devices/${deviceId}/statistics/days`,
+      query: {
+        code: 'add_ele', // O código do dado que queremos
+        start_day: formattedDate,
+        end_day: formattedDate,
+      }
+    });
+
+    if (response.success && response.result) {
+      // A resposta vem em um formato complexo, precisamos extrair o valor
+      const stats = response.result;
+      const values = JSON.parse(stats.values || '{}');
+      
+      // Pega o valor para o dia de hoje
+      const todayValueWh = values[formattedDate] || 0;
+      
+      // Converte de Wh para kWh
+      const todayValueKWh = todayValueWh / 1000;
+
+      res.json({
+        daily_kwh: todayValueKWh.toFixed(2), // Formata com 2 casas decimais
+        unit: 'kWh'
+      });
+    } else {
+      console.error('[Tuya] Erro ao buscar estatísticas:', response);
+      res.status(500).json({ message: 'Falha ao obter estatísticas da Tuya.', error: response.msg });
+    }
+  } catch (error) {
+    console.error('[Tuya] Erro crítico na rota de energia diária:', error);
+    res.status(500).json({ message: 'Erro crítico na rota de energia diária', error: error.message });
+  }
+});
+
+
+// ... (seu app.listen no final) ...
+
 // 7. Inicia o servidor
 app.listen(port, () => {
   console.log(`Servidor rodando em http://localhost:${port}`);
