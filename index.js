@@ -40,10 +40,24 @@ app.get('/devices/tuya', async (req, res) => {
 
         if (response.success) {
             const devices = response.result || [];
+
+            // --- LÓGICA ATUALIZADA ---
             const sanitizedDevices = devices.map(device => {
                 if (device.status && Array.isArray(device.status)) {
                     device.status = device.status.map(statusItem => {
                         if (statusItem.value !== null && statusItem.value !== undefined) {
+                            
+                            // A MÁGICA ACONTECE AQUI:
+                            // Se o código for de voltagem ou potência, já fazemos o cálculo!
+                            if (statusItem.code === 'cur_voltage' || statusItem.code === 'cur_power') {
+                                const numericValue = parseFloat(statusItem.value);
+                                if (!isNaN(numericValue)) {
+                                    // Divide por 10 e formata com 1 casa decimal
+                                    statusItem.value = (numericValue / 10).toFixed(1);
+                                }
+                            }
+                            
+                            // Converte o resultado final para string, por segurança
                             statusItem.value = statusItem.value.toString();
                         }
                         return statusItem;
@@ -51,7 +65,9 @@ app.get('/devices/tuya', async (req, res) => {
                 }
                 return device;
             });
+
             res.json(sanitizedDevices);
+
         } else {
             res.status(500).json({ message: 'Erro ao buscar dispositivos Tuya', error: response.msg });
         }
