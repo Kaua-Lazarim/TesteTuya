@@ -179,7 +179,6 @@ app.get('/devices/tuya/:deviceId/daily-energy', async (req, res) => {
   try {
     const { deviceId } = req.params;
     
-    // Pega a data de hoje e de ontem no formato YYYYMMDD
     const today = new Date();
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
@@ -189,36 +188,30 @@ app.get('/devices/tuya/:deviceId/daily-energy', async (req, res) => {
     const todayFormatted = format(today);
     const yesterdayFormatted = format(yesterday);
 
-    console.log(`[Tuya] Buscando energia para ${deviceId} em ${todayFormatted} e ${yesterdayFormatted}`);
+    console.log(`[Tuya-Energy-Debug] Buscando energia para ${deviceId} em ${todayFormatted} e ${yesterdayFormatted}`);
 
-    // Este é o endpoint correto para buscar o valor total em uma data específica
     const getEnergyTotalAtDate = async (date) => {
       const response = await tuyaContext.request({
         method: 'GET',
         path: `/v1.0/devices/${deviceId}/statistics/total`,
-        query: {
-          code: 'add_ele',
-          stat_type: 'day', // Agrupamento por dia
-          stat_date: date,
-        }
+        query: { code: 'add_ele', stat_type: 'day', stat_date: date }
       });
+      // VAMOS VER A RESPOSTA BRUTA DA TUYA PARA CADA DATA
+      console.log(`[Tuya-Energy-Debug] Resposta BRUTA da Tuya para a data ${date}:`, JSON.stringify(response, null, 2));
       if (response.success && response.result) {
         return response.result.value || 0;
       }
       return 0;
     };
 
-    // Pega o valor total acumulado no final de hoje e de ontem
     const totalToday = await getEnergyTotalAtDate(todayFormatted);
     const totalYesterday = await getEnergyTotalAtDate(yesterdayFormatted);
     
-    console.log(`[Tuya-Debug] Total acumulado ontem: ${totalYesterday}, Total acumulado hoje: ${totalToday}`);
+    // VAMOS VER OS NÚMEROS FINAIS USADOS NO CÁLCULO
+    console.log(`[Tuya-Energy-Debug] Total acumulado ontem: ${totalYesterday}, Total acumulado hoje: ${totalToday}`);
 
-    // Calcula a diferença e converte de Wh para kWh
     const consumedWh = totalToday - totalYesterday;
     const consumedKWh = consumedWh / 1000;
-
-    // Garante que o valor não seja negativo caso o odômetro seja resetado
     const dailyKwh = consumedKWh < 0 ? 0 : consumedKWh;
 
     res.json({
@@ -227,7 +220,7 @@ app.get('/devices/tuya/:deviceId/daily-energy', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('[Tuya] Erro crítico na rota de energia diária:', error);
+    console.error('[Tuya-Energy-Debug] Erro crítico na rota de energia diária:', error);
     res.status(500).json({ message: 'Erro crítico na rota de energia diária', error: error.message });
   }
 });
