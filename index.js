@@ -233,6 +233,26 @@ if (response.success && response.result) {
 });
 
 
+app.get('/devices/tuya/:deviceId/specifications', async (req, res) => {
+  try {
+    const { deviceId } = req.params;
+    console.log(`[DEBUG] Buscando especificações para o deviceId: ${deviceId}`);
+
+    // Este é o endpoint da Tuya que retorna todas as funções e status de um dispositivo
+    const response = await tuyaContext.request({
+      method: 'GET',
+      path: `/v1.0/devices/${deviceId}/specifications`,
+    });
+
+    res.json(response); // Retorna a resposta bruta e completa
+
+  } catch (error) {
+    res.status(500).json({ message: 'Erro ao buscar especificações.', error: error.message });
+  }
+});
+
+
+
 // 7. Inicia o servidor
 app.listen(port, () => {
   console.log(`Servidor rodando em http://localhost:${port}`);
