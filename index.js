@@ -175,56 +175,47 @@ app.get('/devices/tuya/:deviceId/status', async (req, res) => {
   }
 });
 
-// index.js
-
-// ... (todo o seu código existente, como /devices/tuya, /toggle, etc.) ...
-
-// --- NOVA ROTA PARA O RELATÓRIO DE ENERGIA DIÁRIO ---
 app.get('/devices/tuya/:deviceId/daily-energy', async (req, res) => {
   try {
     const { deviceId } = req.params;
     
-    // Pega a data de hoje no formato que a API da Tuya espera (YYYYMMDD)
-    const today = new Date();
-    const formattedDate = today.getFullYear().toString() + 
-                        ('0' + (today.getMonth() + 1)).slice(-2) + 
-                        ('0' + today.getDate()).slice(-2);
+    // Define o início e o fim do dia de hoje em milissegundos (timestamp)
+    const now = new Date();
+    const startTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0).getTime();
+    const endTime = now.getTime();
 
-    console.log(`[Tuya] Buscando energia diária para o device ${deviceId} na data ${formattedDate}`);
+    console.log(`[Tuya] Buscando histórico de energia para o device ${deviceId}`);
 
-    // Este é o endpoint da Tuya para estatísticas diárias
-   const response = await tuyaContext.request({
-  method: 'GET',
-  path: `/v1.0/devices/${deviceId}/statistics/days`,
-  query: {
-    // ATENÇÃO: vamos pedir TODOS os códigos disponíveis, não apenas 'add_ele'
-    code: 'kwh,cur_power,add_ele', // Pedimos vários para ver o que vem
-    start_day: formattedDate,
-    end_day: formattedDate,
-  }
-});
+    // Este é o endpoint correto para buscar o histórico de um status
+    const response = await tuyaContext.request({
+      method: 'GET',
+      path: `/v1.0/devices/${deviceId}/logs/timer`,
+      query: {
+        codes: 'add_ele', // O código do "odômetro" de energia
+        type: '7', // Tipo de log padrão para dados de status
+        start_time: startTime,
+        end_time: endTime,
+      }
+    });
 
-// 👇 ADICIONE ESTA LINHA AQUI 👇
-console.log('[DEBUG] Resposta BRUTA da Tuya Stats:', JSON.stringify(response, null, 2));
-
-if (response.success && response.result) {
-      // A resposta vem em um formato complexo, precisamos extrair o valor
-      const stats = response.result;
-      const values = JSON.parse(stats.values || '{}');
+    if (response.success && response.result && response.result.logs.length > 0) {
+      const logs = response.result.logs;
       
-      // Pega o valor para o dia de hoje
-      const todayValueWh = values[formattedDate] || 0;
+      // Encontra a primeira e a última leitura do dia
+      const firstReading = parseInt(logs[logs.length - 1].value); // O mais antigo vem por último
+      const lastReading = parseInt(logs[0].value); // O mais recente vem primeiro
       
-      // Converte de Wh para kWh
-      const todayValueKWh = todayValueWh / 1000;
+      // Calcula a diferença e converte de Wh para kWh
+      const consumedWh = lastReading - firstReading;
+      const consumedKWh = consumedWh / 1000;
 
       res.json({
-        daily_kwh: todayValueKWh.toFixed(2), // Formata com 2 casas decimais
+        daily_kwh: consumedKWh.toFixed(3), // Formata com 3 casas decimais para precisão
         unit: 'kWh'
       });
     } else {
-      console.error('[Tuya] Erro ao buscar estatísticas:', response);
-      res.status(500).json({ message: 'Falha ao obter estatísticas da Tuya.', error: response.msg });
+      // Se não houver logs ou a resposta falhar, retorna 0
+      res.json({ daily_kwh: "0.00", unit: 'kWh' });
     }
   } catch (error) {
     console.error('[Tuya] Erro crítico na rota de energia diária:', error);
