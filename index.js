@@ -199,7 +199,7 @@ app.get('/devices/tuya/:deviceId/daily-energy', async (req, res) => {
       // VAMOS VER A RESPOSTA BRUTA DA TUYA PARA CADA DATA
       console.log(`[Tuya-Energy-Debug] Resposta BRUTA da Tuya para a data ${date}:`, JSON.stringify(response, null, 2));
       if (response.success && response.result) {
-        return response.result.value || 0;
+        return response.result.total || 0;
       }
       return 0;
     };
