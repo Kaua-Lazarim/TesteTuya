@@ -193,17 +193,21 @@ app.get('/devices/tuya/:deviceId/daily-energy', async (req, res) => {
     console.log(`[Tuya] Buscando energia diária para o device ${deviceId} na data ${formattedDate}`);
 
     // Este é o endpoint da Tuya para estatísticas diárias
-    const response = await tuyaContext.request({
-      method: 'GET',
-      path: `/v1.0/devices/${deviceId}/statistics/days`,
-      query: {
-        code: 'add_ele', // O código do dado que queremos
-        start_day: formattedDate,
-        end_day: formattedDate,
-      }
-    });
+   const response = await tuyaContext.request({
+  method: 'GET',
+  path: `/v1.0/devices/${deviceId}/statistics/days`,
+  query: {
+    // ATENÇÃO: vamos pedir TODOS os códigos disponíveis, não apenas 'add_ele'
+    code: 'kwh,cur_power,add_ele', // Pedimos vários para ver o que vem
+    start_day: formattedDate,
+    end_day: formattedDate,
+  }
+});
 
-    if (response.success && response.result) {
+// 👇 ADICIONE ESTA LINHA AQUI 👇
+console.log('[DEBUG] Resposta BRUTA da Tuya Stats:', JSON.stringify(response, null, 2));
+
+if (response.success && response.result) {
       // A resposta vem em um formato complexo, precisamos extrair o valor
       const stats = response.result;
       const values = JSON.parse(stats.values || '{}');
@@ -228,8 +232,6 @@ app.get('/devices/tuya/:deviceId/daily-energy', async (req, res) => {
   }
 });
 
-
-// ... (seu app.listen no final) ...
 
 // 7. Inicia o servidor
 app.listen(port, () => {
