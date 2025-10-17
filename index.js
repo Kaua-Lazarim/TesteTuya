@@ -226,23 +226,60 @@ app.get('/devices/tuya/:deviceId/daily-energy', async (req, res) => {
 });
 
 
-app.get('/devices/tuya/:deviceId/specifications', async (req, res) => {
+
+app.put('/devices/tuya/:deviceId', async (req, res) => {
   try {
     const { deviceId } = req.params;
-    console.log(`[DEBUG] Buscando especificações para o deviceId: ${deviceId}`);
+    const { newName } = req.body; // Pega o novo nome do corpo da requisição
 
-    // Este é o endpoint da Tuya que retorna todas as funções e status de um dispositivo
+    if (!newName) {
+      return res.status(400).json({ message: 'O novo nome (newName) é obrigatório.' });
+    }
+
+    console.log(`[Tuya] Renomeando dispositivo ${deviceId} para "${newName}"`);
+
     const response = await tuyaContext.request({
-      method: 'GET',
-      path: `/v1.0/devices/${deviceId}/specifications`,
+      method: 'PUT',
+      path: `/v1.0/devices/${deviceId}`,
+      body: {
+        'name': newName
+      }
     });
 
-    res.json(response); // Retorna a resposta bruta e completa
-
+    if (response.success) {
+      res.json({ success: true, message: 'Dispositivo renomeado com sucesso.' });
+    } else {
+      res.status(500).json({ message: 'Falha ao renomear o dispositivo na Tuya.', error: response.msg });
+    }
   } catch (error) {
-    res.status(500).json({ message: 'Erro ao buscar especificações.', error: error.message });
+    res.status(500).json({ message: 'Erro crítico na rota de renomear', error: error.message });
   }
 });
+
+
+// --- NOVA ROTA PARA EXCLUIR UM DISPOSITIVO ---
+app.delete('/devices/tuya/:deviceId', async (req, res) => {
+  try {
+    const { deviceId } = req.params;
+    console.log(`[Tuya] Excluindo dispositivo ${deviceId}`);
+
+    const response = await tuyaContext.request({
+      method: 'DELETE',
+      path: `/v1.0/devices/${deviceId}`,
+    });
+
+    if (response.success) {
+      res.json({ success: true, message: 'Dispositivo excluído com sucesso.' });
+    } else {
+      res.status(500).json({ message: 'Falha ao excluir o dispositivo na Tuya.', error: response.msg });
+    }
+  } catch (error) {
+    res.status(500).json({ message: 'Erro crítico na rota de exclusão', error: error.message });
+  }
+});
+
+
+
 
 
 
